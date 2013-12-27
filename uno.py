@@ -102,7 +102,7 @@ def build_deck():
 
 
 def valid_start_card(card):
-    if any(card[1:2] == value for value in ["S", "-", "R", "I"]):
+    if re.search("^[SRI-]", card[1:2]):
         return False
     else:
         return True
@@ -110,7 +110,7 @@ def valid_start_card(card):
 
 def check_played_card(card, discard_card):
     # Wild cards are always valid, as long as they picked the color
-    if card[0:1] == "W" and (card[4:5] == "R" or card[4:5] == "G" or card[4:5] == "B" or card[4:5] == "Y"):
+    if card[0:1] == "W" and re.search("^[RGBY]", card[4:5]):
         return True
     
     # Check the color. Matches are valid
@@ -161,46 +161,50 @@ if __name__ == "__main__":
     # Main game loop
     game_over = False
     while not game_over:
-        #print("Deck: {}").format(deck)
-        #print("CPU Hand: {}").format(cpu_player.hand)
-        #print("Discard Deck: {}").format(discard_deck)
-        print("Your Hand: {}").format(human_player.show_hand())
-        print("CURRENT: {}").format(colorize_card(discard_deck[-1]))
-        card = raw_input("Your Play " + human_player.name + " --> ").upper()
-
-        if card == "HELP":
-            print(help())
-
-        elif card == "Q":
-            game_over = True
-            exit()
-
-        elif card == "D":
-            # Draw another card and give a chance to play it or pass
-            human_player.draw_card(deck.pop())
+        turn_over = False
+        while not turn_over:
+            #print("Deck: {}").format(deck)
+            #print("CPU Hand: {}").format(cpu_player.hand)
+            #print("Discard Deck: {}").format(discard_deck)
             print("Your Hand: {}").format(human_player.show_hand())
             print("CURRENT: {}").format(colorize_card(discard_deck[-1]))
-            card = raw_input("Your Play " + human_player.name + " OR PASS --> ").upper()
+            card = raw_input("Your Play " + human_player.name + " --> ").upper()
 
-        if re.search("^[RGBYW]", card) and card != "PASS" and card != "":
-            try:
-                # Validate the card played
-                if check_played_card(card, discard_deck[-1]):
-                    # Locate the card, pop it and append it to the discard pile
-                    human_player.play_card(card)
-                    discard_deck.append(card)
-                else:
-                    raise
-            except:
-                print(Fore.RED + "Unrecognized card, try again. You played: {}" + Fore.RESET).format(card)
+            if card == "HELP":
+                print(help())
+
+            elif card == "Q":
+                game_over = True
+                turn_over = True
+                exit()
+
+            elif card == "D":
+                # Draw another card and give a chance to play it or pass
+                human_player.draw_card(deck.pop())
+                print("Your Hand: {}").format(human_player.show_hand())
+                print("CURRENT: {}").format(colorize_card(discard_deck[-1]))
+                card = raw_input("Your Play " + human_player.name + " OR PASS --> ").upper()
+
+            if re.search("^[RGBYW]", card) and card != "PASS" and card != "":
+                try:
+                    # Validate the card played
+                    if check_played_card(card, discard_deck[-1]):
+                        # Locate the card, pop it and append it to the discard pile
+                        human_player.play_card(card)
+                        discard_deck.append(card)
+                        turn_over = True
+                    else:
+                        raise
+                except:
+                    print(Fore.RED + "Unrecognized card, try again. You played: {}" + Fore.RESET).format(card)
 
 
-        if human_player.num_cards() == 1:
-            print(Fore.YELLOW + "{} says UNO!!!" + Fore.RESET).format(human_player.name)
+            if human_player.num_cards() == 1:
+                print(Fore.YELLOW + "{} says UNO!!!" + Fore.RESET).format(human_player.name)
 
-        if human_player.num_cards() == 0:
-            print(Fore.GREEN + "{} WINS!!! Game Over." + Fore.RESET).format(human_player.name)
-            game_over = True
+            if human_player.num_cards() == 0:
+                print(Fore.GREEN + "{} WINS!!! Game Over." + Fore.RESET).format(human_player.name)
+                game_over = True
 
 
     print("Thanks for playing!")
