@@ -7,9 +7,7 @@ http://en.wikipedia.org/wiki/Uno_%28card_game%29
 
 # TODO: if out of cards, shuffle discard_deck and reset deck
 # TODO: check action cards (skip, rev, draw 2/4)
-#       skip --> +1 the player list iter
 #       rev --> flip player list
-#       draw2/4 --> at start of player loop, look at discard
 # TODO: computer player logic, implement play_card_guess()
 #       play_card_guess will just try each card in hand, until no error, or will draw once and pass
 # TODO: say uno on last card, or force draw two
@@ -165,6 +163,7 @@ if __name__ == "__main__":
     game_over = False
     skipped = False
     reverse = False
+    draw24 = False
     while not game_over:
         for p in players:
             print("Current Player: {} ({})").format(p.name, p.brain)
@@ -179,17 +178,18 @@ if __name__ == "__main__":
 
                 if discard_deck[-1][1:4] == "SKP" and skipped:
                     # Skip Action card (step 2)
-                    print("Found a skip. Turn over!")
+                    print("You were skipped. Turn over!")
                     skipped = False
                     turn_over = True
                     break
                 
-                if discard_deck[-1][1:3] == "-D":
-                    # Draw 2/4 action cards
+                if discard_deck[-1][1:3] == "-D" and draw24:
+                    # Draw 2/4 action cards (step 2)
                     for i in range(int(discard_deck[-1][3:4])):
                         p.draw_card(deck.pop())
                     
                     print("You have to draw {}. Turn over!").format(discard_deck[-1][3:4])
+                    draw24 = False
                     turn_over = True
                     break
     
@@ -235,6 +235,7 @@ if __name__ == "__main__":
 
                         if card[1:4] == "REV":
                             # Reverse Action card (step 1)
+                            print("{} played a reverse").format(p.name)
                             reverse = True
                             players.reverse()
 
@@ -242,6 +243,12 @@ if __name__ == "__main__":
                             # Skip Action card (step 1)
                             print("{} played a skip").format(p.name)
                             skipped = True
+
+                        if card[1:3] == "-D":
+                            # Draw 2/4 Action card (step 1)
+                            print("{} played a {}").format(p.name, card)
+                            draw24 = True
+                            
 
                     except:
                         print(Fore.RED + "Invalid card, try again. You played: {}" + Fore.RESET).format(card)
