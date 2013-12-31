@@ -5,15 +5,16 @@ Josh Burks
 http://en.wikipedia.org/wiki/Uno_%28card_game%29
 """
 
-# TODO: if out of cards, shuffle discard_deck and reset deck
+# TODO: treat reverse like skip if players = 2
 # TODO: computer player logic, implement play_card_guess()
 #       play_card_guess will just try each card in hand, until no error, or will draw once and pass
-# TODO: say uno on last card, or force draw two
 # TODO: point tally when game is over
+# TODO: documentation!
 
 from collections import deque
 import random
 import re
+
 from colorama import init, Fore, Back, Style
 
 # colorama init
@@ -100,6 +101,14 @@ def build_deck():
     return deck
 
 
+def shuffle_deck(deck):
+    # Shuffle the deck at least 3 but no more than 10 times
+    for i in range(random.randint(3, 10)):
+        random.shuffle(deck)
+
+    return deck
+
+
 def valid_start_card(card):
     if re.search("^[SRI-]", card[1:2]):
         return False
@@ -127,14 +136,37 @@ def check_played_card(card, discard_card):
     return False
 
 
+def autoplay(hand, discard_card):
+    # Build list of eligible cards, and randomly pick one from it
+    elig_cards = []
+
+    for c in hand:
+        if re.search("^[RGBY]", discard_card[0:1]) and c[0:1] == discard_card[0:1]:
+            elig_cards.append(c)
+        
+        if re.search("[\D|I|-|R|S]", discard_card[1:2]) and c[1:2] == discard_card[1:2]:
+            elig_cards.append(c)
+
+        if re.search("^W", c):
+            elig_cards.append(c)
+
+    print("DEBUG: elig_cards: {}").format(elig_cards)
+    
+    try:
+        card = random.choice(elig_cards)
+    except:
+        card = "D"
+
+    if len(hand) == 1:
+        card += "UNO"
+
+    return card
+
+
 if __name__ == "__main__":
     # Create a deck of Uno cards
-    deck = build_deck()
+    deck = shuffle_deck(build_deck())
     discard_deck = []
-
-    # Shuffle the deck a random number of times
-    for i in range(random.randint(1, 5)):
-        random.shuffle(deck)
 
     # Setup the players
     players = deque([Player("Josh", "Human"), Player("CPU1", "CPU"), Player("CPU2", "CPU")]) 
@@ -174,9 +206,20 @@ if __name__ == "__main__":
         turn_over = False
         draw1 = False
 
+        # If there is only one player, they win by forfeit
+        if len(players) == 0:
+            print(Fore.GREEN + "{} WINS!!! Game Over." + Fore.RESET).format(p.name)
+            turn_over = True
+            game_over = True
+
         while not turn_over:
             # Reshuffle discard deck if main deck is empty.
-            # TODO:
+            if len(deck) == 0:
+                print(Fore.YELLOW + "Reshuffling the discard deck since the main deck was empty..." + Fore.RESET) 
+                top_card = discard_deck.pop()
+                deck = shuffle_deck(discard_deck)
+                discard_deck = []
+                discard_deck.append(top_card)
 
             # Do some checks for action cards before we ask the player for a card...
             if discard_deck[-1][1:4] == "SKP" and skipped:
@@ -199,8 +242,11 @@ if __name__ == "__main__":
                 break
 
             # Ask player for card, or other command...
+            #print("DEBUG Deck: {}").format(deck)
+            #print("DEBUG Discard Deck: {}").format(discard_deck)
             print("Your Hand: {}").format(p.show_hand())
             print("CURRENT: {}").format(colorize_card(discard_deck[-1]))
+            print("DEBUG Autoplay: {}").format(autoplay(p.hand, discard_deck[-1]))
             card = raw_input("Your Play " + p.name + " OR PASS --> ").upper()
 
             if re.search("^P", card):
@@ -225,11 +271,20 @@ if __name__ == "__main__":
 
             if re.search("^Q", card):
                 # Quit the game
-                game_over = True
+                print(Fore.YELLOW + "{} quit the game!" + Fore.RESET).format(p.name)
+                discard_deck = p.hand + discard_deck
+                p.deck = []
+                if len(players) == 0:
+                    game_over = True
+
                 turn_over = True
-                exit()
 
             if re.search("^[RGBYW]", card):
+                # Check if player said UNO
+                if re.search("UNO$", card):
+                    p.said_uno = True
+                    card = re.sub(r'UNO$', "", card)
+
                 # Process the played card
                 try:
                     # Validate the card played
@@ -268,9 +323,18 @@ if __name__ == "__main__":
                 except:
                     print(Fore.RED + "Invalid card, try again. You played: {}" + Fore.RESET).format(card)
                     turn_over = False
+                    p.said_uno = False
 
-            if p.num_cards() == 1:
-                print(Fore.YELLOW + "{} says UNO!!!" + Fore.RESET).format(p.name)
+                # Check for UNO
+                if p.num_cards() == 1:
+                    if p.said_uno:
+                        print(Fore.YELLOW + "{} says UNO!!!" + Fore.RESET).format(p.name)
+                        p.said_uno = False
+                    else:
+                        print(Fore.YELLOW + "{} forgot to say UNO! Draw two!" + Fore.RESET).format(p.name)
+                        p.draw_card(deck.pop())
+                        p.draw_card(deck.pop())
+                        p.said_uno = False
 
             if p.num_cards() == 0:
                 print(Fore.GREEN + "{} WINS!!! Game Over." + Fore.RESET).format(p.name)
