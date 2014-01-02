@@ -1,15 +1,14 @@
 """ 
 Terminal based Uno
-Josh Burks
-12/23/2013
+v1.0.20140102
+Josh Burks - dotnofoolin@gmail.com
+1/2/2014
 http://en.wikipedia.org/wiki/Uno_%28card_game%29
 """
 
-# TODO: treat reverse like skip if players = 2
-# TODO: computer player logic, implement play_card_guess()
-#       play_card_guess will just try each card in hand, until no error, or will draw once and pass
-# TODO: point tally when game is over
-# TODO: documentation!
+# TODO: remove debug prints
+# TODO: draw1/2/4 when deck is empty or near empty crashes game. 
+#       setup DECK and DISCARD_DECK as globals, and create a draw_from_deck() function
 
 from collections import deque
 import random
@@ -21,19 +20,35 @@ from colorama import init, Fore, Back, Style
 init()
 
 class Player():
+    """
+    Player class. Manages the players name, hand, drawing, and playing cards
+    """
+
     def __init__(self, name="Player", brain="CPU"):
+        """
+        Player init
+        """
         self.name = name
         self.hand = []
         self.brain = brain
         self.said_uno = False
 
     def num_cards(self):
+        """
+        Returns number of cards in players hand
+        """
         return len(self.hand)
 
     def draw_card(self, card):
+        """
+        Appends (draws) a card to the players hand
+        """
         self.hand.append(card)
 
     def play_card(self, card):
+        """
+        Removes (plays) the card from the players hand
+        """
         # We only want the first 4 chars, hence the 0:4 slicing
         try:
             c = self.hand.pop(self.hand.index(card[0:4]))
@@ -42,16 +57,41 @@ class Player():
             return False
 
     def show_hand(self):
+        """
+        Returns the players hand, in color!
+        """
         h = ""
         for card in self.hand:
-            h += "|" + colorize_card(card) + "|  "
+            h += "|" + colorize_card(card) + "| "
 
         return h
 
+    def score_hand(self):
+        """
+        Returns the score of the players hand
+        """
+        score = 0
+        for c in self.hand:
+            # Number cards are face value
+            if re.search("\d", c[1:2]):
+                score += int(c[1:2])
+            # Action cards are 20 points
+            if re.search("[R|S|-]", c[1:2]) and c[0:1] <> "W":
+                score += 20
+            # Wild cards are 50 points
+            if re.search("^W", c):
+                score += 50
+
+        return score
+
+
 def help():
+    """
+    Prints a help message
+    """
     s  = ("+---------------------------------------------------------------+\n")
-    s += ("| UNO - v1.0.0                                                  |\n")
-    s += ("| D to draw, PASS or nothing to pass, Q to quit                 |\n")
+    s += ("| UNO Help:                                                     |\n")
+    s += ("| D to draw, P to pass, Q to quit                               |\n")
     s += ("| Type the card you want to play. Add R,G,B, or Y to WILD cards |\n")
     s += ("| Type UNO at the end of the card you are playing to call UNO   |\n")
     s += ("+---------------------------------------------------------------+\n")
@@ -59,6 +99,9 @@ def help():
 
 
 def colorize_card(card):
+    """
+    Returns the card with special color formatting for printing to the screen
+    """
     colored_card = card
     if card[0:1] == "R" or card[4:5] == "R":
         colored_card = Back.RED + Fore.WHITE + card + Fore.RESET + Back.RESET
@@ -79,6 +122,9 @@ def colorize_card(card):
 
 
 def build_deck():
+    """
+    Builds and returns a standard 108-card UNO deck
+    """
     # Wild cards
     deck = ["WILD", "WILD", "WILD", "WILD", "W-D4", "W-D4", "W-D4", "W-D4"]
     # Red cards
@@ -102,6 +148,9 @@ def build_deck():
 
 
 def shuffle_deck(deck):
+    """
+    Shuffles and returns a deck
+    """
     # Shuffle the deck at least 3 but no more than 10 times
     for i in range(random.randint(3, 10)):
         random.shuffle(deck)
@@ -110,6 +159,9 @@ def shuffle_deck(deck):
 
 
 def valid_start_card(card):
+    """
+    Checks the card passed to see if it is a valid game start card
+    """
     if re.search("^[SRI-]", card[1:2]):
         return False
     else:
@@ -117,6 +169,9 @@ def valid_start_card(card):
 
 
 def check_played_card(card, discard_card):
+    """
+    Checks the card passed against the active discard card to determine if play is valid
+    """
     # Wild cards are always valid, as long as they picked the color
     if card[0:1] == "W" and re.search("^[RGBY]", card[4:5]):
         return True
@@ -136,42 +191,95 @@ def check_played_card(card, discard_card):
     return False
 
 
-def autoplay(hand, discard_card):
+def autoplay(hand, discard_card, draw1_status):
+    """
+    Picks a card from the players hand that will make a valid play
+    """
     # Build list of eligible cards, and randomly pick one from it
     elig_cards = []
+    wild_cards = []
 
+    # Count up the colors in the hand, in case we play a Wild
+    colors = {"R": 0, "G": 0, "B": 0, "Y": 0}
     for c in hand:
+        if re.search("^[RGBY]", c[0:1]):
+            colors[c[0:1]] += 1
+
+    # Pick the most frequent color
+    max_color = max(colors, key=lambda k: colors[k])
+
+    # This process can add the card to the elig_cards list twice. I'm cool with that.
+    for c in hand:
+        # If the color matches...
         if re.search("^[RGBY]", discard_card[0:1]) and c[0:1] == discard_card[0:1]:
             elig_cards.append(c)
         
-        if re.search("[\D|I|-|R|S]", discard_card[1:2]) and c[1:2] == discard_card[1:2]:
+        # If the number or action matches...
+        if re.search("[\d|R|S]", discard_card[1:2]) and c[1:2] == discard_card[1:2]:
             elig_cards.append(c)
 
+        # If the hand contains a Wild...
         if re.search("^W", c):
-            elig_cards.append(c)
+            wild_cards.append(c)
 
-    print("DEBUG: elig_cards: {}").format(elig_cards)
+        # If discard is a Wild, and the hand contains a matching color...
+        if (discard_card[0:1] == "W" and re.search("^[RGBY]", discard_card[4:5])) and c[0:1] == discard_card[4:5]:
+            elig_cards.append(c)
     
+    # May refine this a bit later, but it works
+    # Regular cards take priority over wilds, which means the CPU will probably 
+    #     play the wilds last after UNO'ing
     try:
         card = random.choice(elig_cards)
     except:
-        card = "D"
+        try:
+            card = random.choice(wild_cards)
+            card += max_color
+        except:
+            if draw1_status:
+                card = "P"
+            else:
+                card = "D"
 
-    if len(hand) == 1:
+    # Don't forget to say UNO
+    if len(hand) == 2 and card <> "D" and card <> "P":
         card += "UNO"
 
+    #print("DEBUG: elig_cards: {} wild_cards: {} colors: {} max_color: {}").format(elig_cards, wild_cards, colors, max_color)
+    
     return card
 
 
+def print_message(message, audience=None):
+    """
+    Prints formatted messages to the screen depending on the audience passed in
+    """
+    if audience == "Human":
+        print(Fore.CYAN + message + Fore.RESET)
+    else:
+        print(message)
+
+
 if __name__ == "__main__":
+    """
+    Main entry point of the program
+    """
     # Create a deck of Uno cards
     deck = shuffle_deck(build_deck())
     discard_deck = []
 
-    # Setup the players
-    players = deque([Player("Josh", "Human"), Player("CPU1", "CPU"), Player("CPU2", "CPU")]) 
+    # Setup Human players
+    human_player_name = raw_input("Enter your name: ")
+    players = deque([Player(human_player_name, "Human")])
 
-    # TODO: set initial order of play
+    # Setup CPU players
+    num_cpu_players = raw_input("Number of CPU players (1-9): ")
+    if re.search("[123456789]", num_cpu_players):
+        for n in range(1, int(num_cpu_players)+1):
+            players.append(Player("CPU" + str(n), "CPU"))
+    else:
+        print("You didn't enter 1-9 for the number of players! Game over.")
+        exit()
 
     # Initial deal of 7 cards
     for i in range(7):
@@ -190,6 +298,7 @@ if __name__ == "__main__":
 
     # Some flags to keep track of states
     game_over = False
+    reverse = False
     skipped = False
     draw24 = False
 
@@ -198,8 +307,10 @@ if __name__ == "__main__":
         # Manually handle the players list (instead of for p in players)
         # Needed to handle the reverse action card
         # Be sure to players.append(p) where required!
+        # Also remember that the list is 1 less due to the pop
         p = players.popleft()
 
+        print("-" * 80)
         print("Current Player: {} ({})").format(p.name, p.brain)
 
         # More state tracking flags
@@ -215,48 +326,60 @@ if __name__ == "__main__":
         while not turn_over:
             # Reshuffle discard deck if main deck is empty.
             if len(deck) == 0:
-                print(Fore.YELLOW + "Reshuffling the discard deck since the main deck was empty..." + Fore.RESET) 
+                print(Fore.YELLOW + "Reshuffling the discard deck since the main deck is empty..." + Fore.RESET) 
                 top_card = discard_deck.pop()
                 deck = shuffle_deck(discard_deck)
                 discard_deck = []
                 discard_deck.append(top_card)
 
             # Do some checks for action cards before we ask the player for a card...
+            # Reverse Action card (step 2)
+            if discard_deck[-1][1:4] == "REV" and reverse and len(players) == 1:
+                print_message("You were skipped (because Reverse works like Skip with 2 players). Turn over!", p.brain)
+                players.append(p)
+                reverse = False
+                turn_over = True
+                break
+
+            # Skip Action card (step 2)
             if discard_deck[-1][1:4] == "SKP" and skipped:
-                # Skip Action card (step 2)
-                print("You were skipped. Turn over!")
+                print_message("You were skipped. Turn over!", p.brain)
                 players.append(p)
                 skipped = False
                 turn_over = True
                 break
             
+            # Draw 2/4 action cards (step 2)
             if discard_deck[-1][1:3] == "-D" and draw24:
-                # Draw 2/4 action cards (step 2)
                 for i in range(int(discard_deck[-1][3:4])):
                     p.draw_card(deck.pop())
                 
-                print("You have to draw {}. Turn over!").format(discard_deck[-1][3:4])
+                print_message("You have to draw " + discard_deck[-1][3:4] + ". Turn over!", p.brain)
                 players.append(p)
                 draw24 = False
                 turn_over = True
                 break
 
-            # Ask player for card, or other command...
-            #print("DEBUG Deck: {}").format(deck)
-            #print("DEBUG Discard Deck: {}").format(discard_deck)
-            print("Your Hand: {}").format(p.show_hand())
-            print("CURRENT: {}").format(colorize_card(discard_deck[-1]))
-            print("DEBUG Autoplay: {}").format(autoplay(p.hand, discard_deck[-1]))
-            card = raw_input("Your Play " + p.name + " OR PASS --> ").upper()
+            # Ask player/cpu for a card
+            # CPU player
+            if p.brain == "CPU":
+                card = autoplay(p.hand, discard_deck[-1], draw1)
+                print_message(p.name + " played " + card)
+            # Human player
+            else:
+                print("Your Hand: {}").format(p.show_hand())
+                print("CURRENT: {}").format(colorize_card(discard_deck[-1]))
+                #print("DEBUG Autoplay: {}").format(autoplay(p.hand, discard_deck[-1], draw1))
+                card = raw_input("Your Play " + p.name + " OR PASS --> ").upper()
 
+            # Pass
             if re.search("^P", card):
-                # Pass
                 players.append(p)
                 turn_over = True
                 break
 
+            # Draw another card
             if re.search("^D", card):
-                # Draw another card
                 if not draw1:
                     p.draw_card(deck.pop())
                     draw1 = True
@@ -264,13 +387,14 @@ if __name__ == "__main__":
                 elif draw1:
                     print(Fore.RED + "You've already drawn a card. You have to PLAY or PASS." + Fore.RESET)
 
+            # Print help
             if re.search("^H", card):
-                # Print help
                 print(help())
+                print("I suggest you play: {}\n").format(autoplay(p.hand, discard_deck[-1], draw1))
                 turn_over = False
 
+            # Quit the game
             if re.search("^Q", card):
-                # Quit the game
                 print(Fore.YELLOW + "{} quit the game!" + Fore.RESET).format(p.name)
                 discard_deck = p.hand + discard_deck
                 p.deck = []
@@ -279,13 +403,14 @@ if __name__ == "__main__":
 
                 turn_over = True
 
+            # Process the played card
             if re.search("^[RGBYW]", card):
                 # Check if player said UNO
                 if re.search("UNO$", card):
                     p.said_uno = True
                     card = re.sub(r'UNO$', "", card)
 
-                # Process the played card
+                # Not a fan of this. Think about revamping
                 try:
                     # Validate the card played
                     if check_played_card(card, discard_deck[-1]):
@@ -299,29 +424,31 @@ if __name__ == "__main__":
                         raise
 
                     # If we got this far, then the card was valid, and the turn is over
-                    # Process any action cards now
                     players.append(p)
 
+                    # Process any action cards now
+                    # Reverse Action card (step 1)
                     if card[1:4] == "REV":
-                        # Reverse Action card (step 1)
-                        print("{} played a reverse").format(p.name)
+                        print_message(p.name + " played a reverse")
                         reverse = True
                         players.reverse()
                         players.rotate(-1)
 
+                    # Skip Action card (step 1)
                     if card[1:4] == "SKP":
-                        # Skip Action card (step 1)
-                        print("{} played a skip").format(p.name)
+                        print_message(p.name + " played a skip")
                         skipped = True
 
+                    # Draw 2/4 Action card (step 1)
                     if card[1:3] == "-D":
-                        # Draw 2/4 Action card (step 1)
-                        print("{} played a {}").format(p.name, card)
+                        print_message(p.name + " played a Draw " + card[3:4])
                         draw24 = True
                         
 
                 except:
                     print(Fore.RED + "Invalid card, try again. You played: {}" + Fore.RESET).format(card)
+                    print("DEBUG! DEBUG!\ndeck: {}\ndiscard_deck: {}\ncard: {}\nhand: {}").format(deck, discard_deck, card, p.hand)
+                    #exit()
                     turn_over = False
                     p.said_uno = False
 
@@ -336,9 +463,18 @@ if __name__ == "__main__":
                         p.draw_card(deck.pop())
                         p.said_uno = False
 
+            # Player is out of cards, so the game is over
             if p.num_cards() == 0:
                 print(Fore.GREEN + "{} WINS!!! Game Over." + Fore.RESET).format(p.name)
                 game_over = True
+                # Score the other players hands
+                score = 0
+                for loser in players:
+                    if loser.num_cards() > 0:
+                        print("Player: {} Score: {} Hand: {}").format(loser.name, loser.score_hand(), loser.show_hand())
+                        score += loser.score_hand()
+            
+                print(Fore.GREEN + "Final Score: {}" + Fore.RESET).format(str(score))
 
 
     print("Thanks for playing!")
