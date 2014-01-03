@@ -6,13 +6,13 @@ Josh Burks - dotnofoolin@gmail.com
 http://en.wikipedia.org/wiki/Uno_%28card_game%29
 """
 
+# TODO: stats command to show number of cards each player has, last 5 plays, number left in deck, etc.
 # TODO: remove debug prints
-# TODO: draw1/2/4 when deck is empty or near empty crashes game. 
-#       setup DECK and DISCARD_DECK as globals, and create a draw_from_deck() function
 
 from collections import deque
 import random
 import re
+import time
 
 from colorama import init, Fore, Back, Style
 
@@ -158,6 +158,26 @@ def shuffle_deck(deck):
     return deck
 
 
+def draw_from_deck(deck, discard_deck):
+    """
+    Draws (pops) a card from the deck and returns it.
+    Also reshuffles the decks if needed
+    """
+    # This function uses the global DECK and DISCARD_DECK instead of passing in the decks
+    if len(deck) == 0:
+        # Reshuffle discard deck if main deck is empty.
+        print(Fore.YELLOW + "Reshuffling the discard deck since the main deck is empty..." + Fore.RESET)
+        top_card = discard_deck.pop()
+        deck = shuffle_deck(discard_deck)
+        discard_deck = []
+        discard_deck.append(top_card)
+        card = deck.pop()
+    else:
+        card = deck.pop()
+
+    return card, deck, discard_deck
+ 
+
 def valid_start_card(card):
     """
     Checks the card passed to see if it is a valid game start card
@@ -264,7 +284,7 @@ if __name__ == "__main__":
     """
     Main entry point of the program
     """
-    # Create a deck of Uno cards
+    # Create a global deck of Uno cards
     deck = shuffle_deck(build_deck())
     discard_deck = []
 
@@ -274,7 +294,7 @@ if __name__ == "__main__":
 
     # Setup CPU players
     num_cpu_players = raw_input("Number of CPU players (1-9): ")
-    if re.search("[123456789]", num_cpu_players):
+    if re.search("[123456789]", num_cpu_players) and (1 <= int(num_cpu_players) <= 9):
         for n in range(1, int(num_cpu_players)+1):
             players.append(Player("CPU" + str(n), "CPU"))
     else:
@@ -284,14 +304,17 @@ if __name__ == "__main__":
     # Initial deal of 7 cards
     for i in range(7):
        for p in players:
-         p.draw_card(deck.pop())
+         c, deck, discard_deck = draw_from_deck(deck, discard_deck)
+         p.draw_card(c)
 
     # Play the first card to get the discard pile started
-    discard_deck.append(deck.pop())
+    c, deck, discard_deck = draw_from_deck(deck, discard_deck)
+    discard_deck.append(c)
 
     # Certain cards can't start the discard pile. Check for them and draw until we're good
     while not valid_start_card(discard_deck[-1]):
-        discard_deck.append(deck.pop())
+        c, deck, discard_deck = draw_from_deck(deck, discard_deck)
+        discard_deck.append(c)
 
     # Instructions
     print(help())
@@ -324,14 +347,6 @@ if __name__ == "__main__":
             game_over = True
 
         while not turn_over:
-            # Reshuffle discard deck if main deck is empty.
-            if len(deck) == 0:
-                print(Fore.YELLOW + "Reshuffling the discard deck since the main deck is empty..." + Fore.RESET) 
-                top_card = discard_deck.pop()
-                deck = shuffle_deck(discard_deck)
-                discard_deck = []
-                discard_deck.append(top_card)
-
             # Do some checks for action cards before we ask the player for a card...
             # Reverse Action card (step 2)
             if discard_deck[-1][1:4] == "REV" and reverse and len(players) == 1:
@@ -352,7 +367,8 @@ if __name__ == "__main__":
             # Draw 2/4 action cards (step 2)
             if discard_deck[-1][1:3] == "-D" and draw24:
                 for i in range(int(discard_deck[-1][3:4])):
-                    p.draw_card(deck.pop())
+                    c, deck, discard_deck = draw_from_deck(deck, discard_deck)
+                    p.draw_card(c)
                 
                 print_message("You have to draw " + discard_deck[-1][3:4] + ". Turn over!", p.brain)
                 players.append(p)
@@ -365,6 +381,7 @@ if __name__ == "__main__":
             if p.brain == "CPU":
                 card = autoplay(p.hand, discard_deck[-1], draw1)
                 print_message(p.name + " played " + card)
+                time.sleep(1)
             # Human player
             else:
                 print("Your Hand: {}").format(p.show_hand())
@@ -381,7 +398,8 @@ if __name__ == "__main__":
             # Draw another card
             if re.search("^D", card):
                 if not draw1:
-                    p.draw_card(deck.pop())
+                    c, deck, discard_deck = draw_from_deck(deck, discard_deck)
+                    p.draw_card(c)
                     draw1 = True
                     turn_over = False
                 elif draw1:
@@ -459,8 +477,10 @@ if __name__ == "__main__":
                         p.said_uno = False
                     else:
                         print(Fore.YELLOW + "{} forgot to say UNO! Draw two!" + Fore.RESET).format(p.name)
-                        p.draw_card(deck.pop())
-                        p.draw_card(deck.pop())
+                        c, deck, discard_deck = draw_from_deck(deck, discard_deck)
+                        p.draw_card(c)
+                        c, deck, discard_deck = draw_from_deck(deck, discard_deck)
+                        p.draw_card(c)
                         p.said_uno = False
 
             # Player is out of cards, so the game is over
