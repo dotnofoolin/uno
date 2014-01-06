@@ -8,6 +8,12 @@ I enjoy playing the popular UNO card game, so as a programming exercise, I decid
 
 uno.py has been tested in Linux bash terminals, and Windows Command Prompts. Your results may vary.
 
+![UNO screenshot](uno_screenshot.png)
+
+### Author
+* Josh Burks
+* dotnofoolin@gmail.com
+
 ### Requirements
 * Python 2.7 (developed using 2.7.4)
 * colorama 0.2.7
@@ -29,7 +35,3 @@ uno.py has been tested in Linux bash terminals, and Windows Command Prompts. You
 ### TODO
 * More testing, because there is never enough
 * Implement a web version
-
-
-Josh Burks
-dotnofoolin@gmail.com
