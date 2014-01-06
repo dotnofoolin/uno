@@ -6,9 +6,6 @@ Josh Burks - dotnofoolin@gmail.com
 http://en.wikipedia.org/wiki/Uno_%28card_game%29
 """
 
-# TODO: stats command to show number of cards each player has, last 5 plays, number left in deck, etc.
-# TODO: remove debug prints
-
 from collections import deque
 import random
 import re
@@ -18,6 +15,19 @@ from colorama import init, Fore, Back, Style
 
 # colorama init
 init()
+
+def help():
+    """
+    Prints a help message
+    """
+    s  = ("+---------------------------------------------------------------+\n")
+    s += ("| UNO Help:                                                     |\n")
+    s += ("| D to draw, P to pass, S for stats, Q to quit                  |\n")
+    s += ("| Type the card you want to play. Add R,G,B, or Y to WILD cards |\n")
+    s += ("| Type UNO at the end of the card you are playing to say UNO    |\n")
+    s += ("+---------------------------------------------------------------+\n")
+    return s
+
 
 class Player():
     """
@@ -85,19 +95,6 @@ class Player():
         return score
 
 
-def help():
-    """
-    Prints a help message
-    """
-    s  = ("+---------------------------------------------------------------+\n")
-    s += ("| UNO Help:                                                     |\n")
-    s += ("| D to draw, P to pass, Q to quit                               |\n")
-    s += ("| Type the card you want to play. Add R,G,B, or Y to WILD cards |\n")
-    s += ("| Type UNO at the end of the card you are playing to call UNO   |\n")
-    s += ("+---------------------------------------------------------------+\n")
-    return s
-
-
 def colorize_card(card):
     """
     Returns the card with special color formatting for printing to the screen
@@ -163,9 +160,8 @@ def draw_from_deck(deck, discard_deck):
     Draws (pops) a card from the deck and returns it.
     Also reshuffles the decks if needed
     """
-    # This function uses the global DECK and DISCARD_DECK instead of passing in the decks
+    # Reshuffle discard deck if main deck is empty.
     if len(deck) == 0:
-        # Reshuffle discard deck if main deck is empty.
         print(Fore.YELLOW + "Reshuffling the discard deck since the main deck is empty..." + Fore.RESET)
         top_card = discard_deck.pop()
         deck = shuffle_deck(discard_deck)
@@ -247,8 +243,7 @@ def autoplay(hand, discard_card, draw1_status):
             elig_cards.append(c)
     
     # May refine this a bit later, but it works
-    # Regular cards take priority over wilds, which means the CPU will probably 
-    #     play the wilds last after UNO'ing
+    # Regular cards take priority over wilds, which means the CPU will probably play the wilds last after UNO'ing
     try:
         card = random.choice(elig_cards)
     except:
@@ -265,8 +260,6 @@ def autoplay(hand, discard_card, draw1_status):
     if len(hand) == 2 and card <> "D" and card <> "P":
         card += "UNO"
 
-    #print("DEBUG: elig_cards: {} wild_cards: {} colors: {} max_color: {}").format(elig_cards, wild_cards, colors, max_color)
-    
     return card
 
 
@@ -405,13 +398,20 @@ if __name__ == "__main__":
                 elif draw1:
                     print(Fore.RED + "You've already drawn a card. You have to PLAY or PASS." + Fore.RESET)
 
-            # Print help
+            # Print help, and a suggestion from the autoplay function
             if re.search("^H", card):
                 print(help())
                 print("I suggest you play: {}\n").format(autoplay(p.hand, discard_deck[-1], draw1))
                 turn_over = False
 
-            # Quit the game
+            # Print stats about the other players, decks, etc
+            if re.search("^S", card):
+                for piter in players:
+                    print("Player: {}, Cards: {}").format(piter.name, piter.num_cards())
+                
+                print("Cards in Deck: {}, Cards in Discard: {}").format(str(len(deck)), str(len(discard_deck))) 
+
+            # Quit the game, put players cards at bottom of discard deck
             if re.search("^Q", card):
                 print(Fore.YELLOW + "{} quit the game!" + Fore.RESET).format(p.name)
                 discard_deck = p.hand + discard_deck
@@ -465,8 +465,6 @@ if __name__ == "__main__":
 
                 except:
                     print(Fore.RED + "Invalid card, try again. You played: {}" + Fore.RESET).format(card)
-                    print("DEBUG! DEBUG!\ndeck: {}\ndiscard_deck: {}\ncard: {}\nhand: {}").format(deck, discard_deck, card, p.hand)
-                    #exit()
                     turn_over = False
                     p.said_uno = False
 
