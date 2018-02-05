@@ -461,25 +461,24 @@ if __name__ == "__main__":
                     if card[1:3] == "-D":
                         print_message(p.name + " played a Draw " + card[3:4])
                         draw24 = True
+
+		    # Check for UNO
+		    if p.num_cards() == 1:
+	                if p.said_uno:
+        	            print(Fore.YELLOW + "{} says UNO!!!" + Fore.RESET).format(p.name)
+                	    p.said_uno = False
+	                else:
+        	            print(Fore.YELLOW + "{} forgot to say UNO! Draw two!" + Fore.RESET).format(p.name)
+                            c, deck, discard_deck = draw_from_deck(deck, discard_deck)
+                            p.draw_card(c)
+                            c, deck, discard_deck = draw_from_deck(deck, discard_deck)
+                            p.draw_card(c)
+                            p.said_uno = False
                         
 
                 except:
                     print(Fore.RED + "Invalid card, try again. You played: {}" + Fore.RESET).format(card)
                     turn_over = False
-                    p.said_uno = False
-
-                # Check for UNO
-                if p.num_cards() == 1:
-                    if p.said_uno:
-                        print(Fore.YELLOW + "{} says UNO!!!" + Fore.RESET).format(p.name)
-                        p.said_uno = False
-                    else:
-                        print(Fore.YELLOW + "{} forgot to say UNO! Draw two!" + Fore.RESET).format(p.name)
-                        c, deck, discard_deck = draw_from_deck(deck, discard_deck)
-                        p.draw_card(c)
-                        c, deck, discard_deck = draw_from_deck(deck, discard_deck)
-                        p.draw_card(c)
-                        p.said_uno = False
 
             # Player is out of cards, so the game is over
             if p.num_cards() == 0:
